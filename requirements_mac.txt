@@ -1,0 +1,24 @@
+# OpenAI API
+openai>=1.12.0
+
+# Audio Recording
+sounddevice>=0.4.6
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Keyboard & System
+pynput>=1.7.6
+pyperclip>=1.8.2
+
+# macOS active window detection (via AppKit, included with macOS Python)
+# pyobjc-framework-Quartz  # uncomment if needed
+
+# System tray
+pystray>=0.19.5
+Pillow>=10.0.0
+
+# Config
+pyyaml>=6.0
+
+# App packaging (dev dependency)
+# pyinstaller>=6.0
