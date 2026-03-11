@@ -53,53 +53,34 @@ fi
 echo
 echo "✅ .app bundle created at dist/OpenWisprFlow.app"
 
-# ── Step 2: Create launcher script inside .app ────────────────────
-echo "[2/3] Adding API key launcher..."
+# ── Step 2: Add permission descriptions to Info.plist ─────────────
+echo "[2/3] Configuring permissions and re-signing..."
 
-# Create a wrapper script that checks for API key
-cat > dist/OpenWisprFlow.app/Contents/MacOS/launch_wrapper.sh << 'WRAPPER'
-#!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CONFIG_FILE="$HOME/.open_wispr_flow/config.json"
+# NOTE: No wrapper script — the Python app itself handles missing API keys
+# by auto-opening the settings window. Using a wrapper script breaks macOS's
+# process-to-app-bundle association, preventing the app from appearing in
+# System Settings → Privacy & Security.
 
-# Check for API key
-if [ -z "$OPENAI_API_KEY" ]; then
-    # Try to load from config
-    if [ -f "$CONFIG_FILE" ]; then
-        KEY=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE')).get('OPENAI_API_KEY',''))" 2>/dev/null)
-        if [ -n "$KEY" ]; then
-            export OPENAI_API_KEY="$KEY"
-        fi
-    fi
-fi
-
-if [ -z "$OPENAI_API_KEY" ]; then
-    # Prompt with osascript dialog
-    KEY=$(osascript -e 'display dialog "Enter your OpenAI API key:" & return & return & "Get one at: https://platform.openai.com/api-keys" default answer "" with title "Open Wispr Flow Setup" buttons {"Cancel", "Save"} default button "Save"' -e 'text returned of result' 2>/dev/null)
-    
-    if [ -z "$KEY" ]; then
-        osascript -e 'display alert "No API key provided" message "Open Wispr Flow needs an OpenAI API key to work." as critical'
-        exit 1
-    fi
-    
-    export OPENAI_API_KEY="$KEY"
-    
-    # Save for future runs
-    mkdir -p "$HOME/.open_wispr_flow"
-    echo "{\"OPENAI_API_KEY\": \"$KEY\"}" > "$CONFIG_FILE"
-fi
-
-exec "$SCRIPT_DIR/OpenWisprFlow"
-WRAPPER
-
-chmod +x dist/OpenWisprFlow.app/Contents/MacOS/launch_wrapper.sh
-
-# Update Info.plist to use wrapper
 PLIST="dist/OpenWisprFlow.app/Contents/Info.plist"
 if [ -f "$PLIST" ]; then
-    # Replace CFBundleExecutable to use the wrapper
-    sed -i '' 's|<string>OpenWisprFlow</string>|<string>launch_wrapper.sh</string>|' "$PLIST" 2>/dev/null || \
-    sed -i 's|<string>OpenWisprFlow</string>|<string>launch_wrapper.sh</string>|' "$PLIST"
+    # Add macOS permission usage descriptions (required for Privacy & Security visibility)
+    /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Open Wispr Flow needs microphone access to record your voice for transcription.'" "$PLIST" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Add :NSAppleEventsUsageDescription string 'Open Wispr Flow needs automation access to paste transcribed text.'" "$PLIST" 2>/dev/null || true
+
+    echo "  ✅ Info.plist updated with permission descriptions"
+fi
+
+# Re-sign the .app bundle after plist modifications (required for macOS to accept it)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENTITLEMENTS="$SCRIPT_DIR/entitlements.plist"
+if [ -f "$ENTITLEMENTS" ]; then
+    echo "  Re-signing .app with entitlements..."
+    codesign --force --deep --sign - --entitlements "$ENTITLEMENTS" dist/OpenWisprFlow.app
+    echo "  ✅ App re-signed with entitlements"
+else
+    echo "  Re-signing .app (ad-hoc)..."
+    codesign --force --deep --sign - dist/OpenWisprFlow.app
+    echo "  ✅ App re-signed (ad-hoc, no entitlements file found)"
 fi
 
 # ── Step 3: Create DMG ────────────────────────────────────────────

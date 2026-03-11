@@ -48,6 +48,20 @@ def _create_recording_icon():
     return img
 
 
+def _run_settings_process(current_config):
+    """Run settings UI in a separate process so Tk gets its own main thread.
+    This is required on macOS where NSWindow must be created on the main thread.
+    """
+    from settings_ui import SettingsWindow
+    from config import save_config
+
+    def on_save(new_cfg):
+        save_config(new_cfg)
+
+    win = SettingsWindow(on_save_callback=on_save)
+    win.show(current_config)
+
+
 class TrayApp:
     """System tray application for Open Wispr Flow"""
 
@@ -242,12 +256,21 @@ class TrayApp:
         self.keyboard_listener.start()
 
     def _open_settings(self, icon=None, item=None):
-        """Open settings window in a separate thread"""
-        def _show():
-            from settings_ui import SettingsWindow
-            win = SettingsWindow(on_save_callback=self._on_settings_save)
-            win.show(self._get_current_config())
-        threading.Thread(target=_show, daemon=True).start()
+        """Open settings window as a separate process (Tk requires main thread on macOS)"""
+        import multiprocessing
+        current = self._get_current_config()
+        p = multiprocessing.Process(
+            target=_run_settings_process,
+            args=(current,),
+            daemon=True,
+        )
+        p.start()
+
+        # Reload config after settings window closes (in background)
+        def _wait_and_reload():
+            p.join()
+            self._reload()
+        threading.Thread(target=_wait_and_reload, daemon=True).start()
 
     def _quit(self, icon=None, item=None):
         """Exit the application"""

@@ -217,3 +217,22 @@ class SettingsWindow:
         if self.window:
             self.window.destroy()
             self.window = None
+
+
+if __name__ == "__main__":
+    from config import load_config, save_config
+    import config as cfg
+
+    load_config()
+    current = {
+        "OPENAI_API_KEY": cfg.OPENAI_API_KEY,
+        "GPT_MODEL": cfg.GPT_MODEL,
+        "WHISPER_MODEL": cfg.WHISPER_MODEL,
+        "WHISPER_LANGUAGE": cfg.WHISPER_LANGUAGE,
+        "GPT_TEMPERATURE": cfg.GPT_TEMPERATURE,
+        "RECORD_MODE": cfg.RECORD_MODE,
+        "SYSTEM_PROMPT": cfg.SYSTEM_PROMPT,
+    }
+    win = SettingsWindow(on_save_callback=save_config)
+    win.show(current)
+
