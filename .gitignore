@@ -1,6 +1,7 @@
 .gradle/
 build/
 local.properties
+"local copy.properties"
 *.iml
 .idea/
 .DS_Store
