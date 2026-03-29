@@ -1,7 +1,7 @@
 VoiceFlowApp/.gradle/
 VoiceFlowApp/build/
 VoiceFlowApp/local.properties
-VoiceFlowApp/"local copy.properties"
+"VoiceFlowApp/local copy.properties"
 VoiceFlowApp/*.iml
 VoiceFlowApp/.idea/
 VoiceFlowApp/.DS_Store
