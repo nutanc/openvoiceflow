@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">VoiceFlow</string>
+    <string name="accessibility_service_description">VoiceFlow uses accessibility to detect the currently focused text field and paste corrected voice transcriptions into it. No personal data is collected or transmitted.</string>
+    <string name="notification_channel_name">VoiceFlow Service</string>
+    <string name="notification_channel_description">Shows when VoiceFlow floating bubble is active</string>
+</resources>
