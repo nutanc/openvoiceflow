@@ -312,11 +312,30 @@ Focus types for `android.intent.extra.focus`:
 
 ### ⏰ Alarm & Timer
 
+> **⚠️ CRITICAL — "No app found" fix:**
+> The `SET_ALARM` / `SET_TIMER` intents are implicit intents. To resolve correctly you **MUST**:
+> 1. Include `"category": "android.intent.category.DEFAULT"` — Android requires DEFAULT category for implicit intent resolution.
+> 2. Include `"package": "com.google.android.deskclock"` — targets Google Clock directly (avoids resolution failure on devices where `resolveActivity()` returns null due to Android 11+ package visibility restrictions).
+> 3. Your app's `AndroidManifest.xml` **must** declare: `<uses-permission android:name="com.android.alarm.permission.SET_ALARM" />`
+> 4. On Android 11+, add a `<queries>` block in your manifest so your app can see the clock app:
+>    ```xml
+>    <queries>
+>      <intent>
+>        <action android:name="android.intent.action.SET_ALARM" />
+>      </intent>
+>      <intent>
+>        <action android:name="android.intent.action.SET_TIMER" />
+>      </intent>
+>    </queries>
+>    ```
+>
+> **Samsung devices** use `com.sec.android.app.clockpackage` instead of `com.google.android.deskclock`. If you want maximum compatibility, omit `package` and rely on the `<queries>` + category approach, or detect the OEM at runtime.
+
 | Action | Details |
 |---|---|
-| **Set alarm** | `action`: `android.intent.action.SET_ALARM` |
-| **Set timer** | `action`: `android.intent.action.SET_TIMER` |
-| **Show alarms** | `action`: `android.intent.action.SHOW_ALARMS` |
+| **Set alarm** | `action`: `android.intent.action.SET_ALARM` · `package`: `com.google.android.deskclock` · `category`: `android.intent.category.DEFAULT` |
+| **Set timer** | `action`: `android.intent.action.SET_TIMER` · `package`: `com.google.android.deskclock` · `category`: `android.intent.category.DEFAULT` |
+| **Show alarms** | `action`: `android.intent.action.SHOW_ALARMS` · `package`: `com.google.android.deskclock` |
 | **Dismiss alarm** | `action`: `android.intent.action.DISMISS_ALARM` |
 | **Snooze alarm** | `action`: `android.intent.action.SNOOZE_ALARM` |
 
@@ -338,6 +357,8 @@ Timer extras:
 ```json
 {
   "action": "android.intent.action.SET_ALARM",
+  "package": "com.google.android.deskclock",
+  "category": "android.intent.category.DEFAULT",
   "extras": {
     "android.intent.extra.alarm.HOUR": 7,
     "android.intent.extra.alarm.MINUTES": 0,
@@ -352,6 +373,8 @@ Timer extras:
 ```json
 {
   "action": "android.intent.action.SET_ALARM",
+  "package": "com.google.android.deskclock",
+  "category": "android.intent.category.DEFAULT",
   "extras": {
     "android.intent.extra.alarm.HOUR": 18,
     "android.intent.extra.alarm.MINUTES": 30,
@@ -367,6 +390,8 @@ Timer extras:
 ```json
 {
   "action": "android.intent.action.SET_TIMER",
+  "package": "com.google.android.deskclock",
+  "category": "android.intent.category.DEFAULT",
   "extras": {
     "android.intent.extra.alarm.LENGTH": 600,
     "android.intent.extra.alarm.MESSAGE": "10 minute timer",
@@ -380,12 +405,45 @@ Timer extras:
 ```json
 {
   "action": "android.intent.action.SET_TIMER",
+  "package": "com.google.android.deskclock",
+  "category": "android.intent.category.DEFAULT",
   "extras": {
     "android.intent.extra.alarm.LENGTH": 30,
     "android.intent.extra.alarm.MESSAGE": "Eggs",
     "android.intent.extra.alarm.SKIP_UI": true
   },
   "response": "30-second egg timer started"
+}
+```
+
+**Example — "Set alarm for 7 AM" (Samsung device variant)**
+```json
+{
+  "action": "android.intent.action.SET_ALARM",
+  "package": "com.sec.android.app.clockpackage",
+  "category": "android.intent.category.DEFAULT",
+  "extras": {
+    "android.intent.extra.alarm.HOUR": 7,
+    "android.intent.extra.alarm.MINUTES": 0,
+    "android.intent.extra.alarm.MESSAGE": "Wake up",
+    "android.intent.extra.alarm.SKIP_UI": true
+  },
+  "response": "Alarm set for 7:00 AM"
+}
+```
+
+**Example — "Set alarm for 7 AM" (maximum compatibility — no package, relies on system resolver)**
+```json
+{
+  "action": "android.intent.action.SET_ALARM",
+  "category": "android.intent.category.DEFAULT",
+  "extras": {
+    "android.intent.extra.alarm.HOUR": 7,
+    "android.intent.extra.alarm.MINUTES": 0,
+    "android.intent.extra.alarm.MESSAGE": "Wake up",
+    "android.intent.extra.alarm.SKIP_UI": true
+  },
+  "response": "Alarm set for 7:00 AM"
 }
 ```
 
@@ -456,24 +514,76 @@ Calendar extras:
 
 ### 📝 Notes (Google Keep)
 
+> **⚠️ CRITICAL — extras and approach fix:**
+> The `CREATE_NOTE` action opens Google Keep but **does not reliably populate the note body** on many devices/versions. The GMS extras (`com.google.android.gms.actions.extra.NAME` / `.TEXT`) are often ignored by newer Keep versions.
+>
+> **USE `ACTION_SEND` instead** — this is the **proven, reliable** approach. It uses Keep's share receiver which correctly reads the extras and pre-fills both title and body. This is confirmed working by Tasker community, automation tools, and real-device testing.
+>
+> Required fields for `ACTION_SEND`:
+> 1. `"type": "text/plain"` — MIME type (must match Keep's `<data android:type="text/plain" />` intent filter)
+> 2. `"package": "com.google.android.keep"` — targets Keep directly (skips chooser dialog)
+> 3. `"category": "android.intent.category.DEFAULT"`
+>
+> Your app's `AndroidManifest.xml` needs on Android 11+:
+> ```xml
+> <queries>
+>   <package android:name="com.google.android.keep" />
+> </queries>
+> ```
+>
+> **Note:** Keep auto-saves when the user leaves the note — no explicit save action is needed.
+
 | Action | Details |
 |---|---|
-| **Create note** | `action`: `com.google.android.gms.actions.CREATE_NOTE` · `package`: `com.google.android.keep` |
+| **Create note (recommended)** | `action`: `android.intent.action.SEND` · `package`: `com.google.android.keep` · `type`: `text/plain` |
+| **Create note (alternative — less reliable)** | `action`: `com.google.android.gms.actions.CREATE_NOTE` · `package`: `com.google.android.keep` · `type`: `*/*` |
 
-Extras:
+ACTION_SEND extras (recommended):
 - `android.intent.extra.SUBJECT` — note title
-- `android.intent.extra.TEXT` — note body
+- `android.intent.extra.TEXT` — note body text
 
 **Example — "Take a note: Buy groceries and pick up laundry"**
 ```json
 {
-  "action": "com.google.android.gms.actions.CREATE_NOTE",
+  "action": "android.intent.action.SEND",
   "package": "com.google.android.keep",
+  "type": "text/plain",
+  "category": "android.intent.category.DEFAULT",
   "extras": {
     "android.intent.extra.SUBJECT": "Reminder",
     "android.intent.extra.TEXT": "Buy groceries and pick up laundry"
   },
+  "response": "Creating note in Google Keep"
+}
+```
+
+**Example — "Note to self: Call dentist on Monday"**
+```json
+{
+  "action": "android.intent.action.SEND",
+  "package": "com.google.android.keep",
+  "type": "text/plain",
+  "category": "android.intent.category.DEFAULT",
+  "extras": {
+    "android.intent.extra.SUBJECT": "To-Do",
+    "android.intent.extra.TEXT": "Call dentist on Monday"
+  },
   "response": "Note saved to Google Keep"
+}
+```
+
+**Example — "Save a shopping list: Milk, eggs, bread, butter"**
+```json
+{
+  "action": "android.intent.action.SEND",
+  "package": "com.google.android.keep",
+  "type": "text/plain",
+  "category": "android.intent.category.DEFAULT",
+  "extras": {
+    "android.intent.extra.SUBJECT": "Shopping List",
+    "android.intent.extra.TEXT": "Milk, eggs, bread, butter"
+  },
+  "response": "Shopping list saved to Google Keep"
 }
 ```
 

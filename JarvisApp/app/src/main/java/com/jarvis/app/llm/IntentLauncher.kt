@@ -87,8 +87,9 @@ object IntentLauncher {
                 intent.addCategory(category)
             } else if (action == "android.intent.action.SET_ALARM" || 
                        action == "android.intent.action.SET_TIMER" || 
-                       action == "android.intent.action.SHOW_ALARMS") {
-                // Ensure implicit resolution works for clock apps
+                       action == "android.intent.action.SHOW_ALARMS" ||
+                       action == "com.google.android.gms.actions.CREATE_NOTE") {
+                // Ensure implicit resolution works for these apps
                 intent.addCategory(Intent.CATEGORY_DEFAULT)
             }
 
