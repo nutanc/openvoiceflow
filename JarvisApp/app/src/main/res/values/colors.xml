@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#FF6750A4</color>
+    <color name="primary_variant">#FF7F67BE</color>
+    <color name="on_primary">#FFFFFFFF</color>
+    <color name="secondary">#FF625B71</color>
+    <color name="on_secondary">#FFFFFFFF</color>
+    <color name="background">#FFFFFBFE</color>
+    <color name="surface">#FFFFFBFE</color>
+    <color name="on_surface">#FF1C1B1F</color>
+    <color name="on_background">#FF1C1B1F</color>
+    <color name="error">#FFB3261E</color>
+
+    <!-- Bubble colors -->
+    <color name="bubble_idle">#FF6750A4</color>
+    <color name="bubble_recording">#FFEF4444</color>
+    <color name="bubble_processing">#FFFFA726</color>
+
+    <!-- Dark theme -->
+    <color name="primary_dark">#FFD0BCFF</color>
+    <color name="background_dark">#FF1C1B1F</color>
+    <color name="surface_dark">#FF2B2930</color>
+    <color name="on_surface_dark">#FFE6E1E5</color>
+</resources>

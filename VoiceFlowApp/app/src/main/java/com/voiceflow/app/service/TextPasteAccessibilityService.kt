@@ -133,19 +133,45 @@ class TextPasteAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Set text on an accessibility node.
+     * Insert text into an accessibility node at the current cursor position,
+     * preserving any existing content. If no cursor position is found,
+     * the new text is appended at the end.
      */
     private fun pasteIntoNode(node: AccessibilityNodeInfo, text: String): Boolean {
         return try {
-            // Try ACTION_SET_TEXT first (most reliable)
+            // Read existing text and cursor position
+            val existingText = node.text?.toString() ?: ""
+            val selStart = node.textSelectionStart  // -1 if unavailable
+            val selEnd = node.textSelectionEnd      // -1 if unavailable
+
+            // Build the merged text: insert new text at the cursor position
+            val mergedText = if (selStart >= 0 && selEnd >= 0 &&
+                selStart <= existingText.length && selEnd <= existingText.length) {
+                // Replace the selected range (or insert at cursor if selStart == selEnd)
+                val before = existingText.substring(0, selStart)
+                val after = existingText.substring(selEnd)
+                "$before$text$after"
+            } else {
+                // No valid cursor — append with a space separator if needed
+                if (existingText.isNotEmpty()) "$existingText $text" else text
+            }
+
+            // Use ACTION_SET_TEXT with the merged content
             val args = Bundle().apply {
-                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, mergedText)
             }
             val success = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
             if (success) {
-                Log.d(TAG, "Text pasted successfully via ACTION_SET_TEXT")
+                // Move cursor to the end of the inserted text
+                val newCursorPos = if (selStart >= 0) selStart + text.length else mergedText.length
+                val cursorArgs = Bundle().apply {
+                    putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, newCursorPos)
+                    putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, newCursorPos)
+                }
+                node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, cursorArgs)
+                Log.d(TAG, "Text inserted at cursor position successfully")
             } else {
-                // Fallback: use clipboard
+                // Fallback: use clipboard paste (which naturally inserts at cursor)
                 pasteViaClipboard(node, text)
             }
             success

@@ -34,7 +34,7 @@ import com.voiceflow.app.ui.MainActivity
 
 /**
  * Foreground service that shows a floating bubble overlay.
- * Press and hold the bubble to record, release to process.
+ * Tap the bubble to start recording, tap again to stop and process.
  * The bubble can also be dragged around.
  *
  * This is the Android equivalent of the hotkey listener in main.py from OpenVoiceFlow.
@@ -45,7 +45,6 @@ class FloatingBubbleService : Service() {
         private const val TAG = "FloatingBubble"
         private const val NOTIFICATION_ID = 1
         private const val BUBBLE_SIZE_DP = 56
-        private const val HOLD_DELAY_MS = 150L  // Brief hold before starting recording (to distinguish from drag)
         private const val MOVE_THRESHOLD_PX = 10
 
         var isRunning: Boolean = false
@@ -76,10 +75,8 @@ class FloatingBubbleService : Service() {
     private var progressView: ProgressBar? = null
     private var bubbleBackground: GradientDrawable? = null
 
-    // Press-and-hold state
-    private var isHolding = false
-    private var holdStartedRecording = false
-    private var startRecordingRunnable: Runnable? = null
+    // Tap-to-toggle state
+    private var isRecordingActive = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -96,6 +93,10 @@ class FloatingBubbleService : Service() {
         orchestrator.setStateListener(object : VoiceFlowOrchestrator.StateListener {
             override fun onStateChanged(state: VoiceFlowOrchestrator.State, message: String) {
                 updateBubbleAppearance(state, message)
+                // Reset toggle flag when pipeline finishes (or errors)
+                if (state == VoiceFlowOrchestrator.State.IDLE) {
+                    isRecordingActive = false
+                }
             }
         })
 
@@ -124,7 +125,7 @@ class FloatingBubbleService : Service() {
         // Add bubble to window
         windowManager.addView(bubbleView, layoutParams)
 
-        // Setup touch handling (press-and-hold + drag)
+        // Setup touch handling (tap-to-toggle + drag)
         setupTouchListener()
 
         // Start as foreground service
@@ -192,21 +193,6 @@ class FloatingBubbleService : Service() {
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
                     hasMoved = false
-                    isHolding = true
-                    holdStartedRecording = false
-
-                    // Schedule recording start after a brief delay
-                    // (so quick drag gestures don't trigger recording)
-                    if (orchestrator.getCurrentState() == VoiceFlowOrchestrator.State.IDLE) {
-                        startRecordingRunnable = Runnable {
-                            if (isHolding && !hasMoved) {
-                                Log.d(TAG, "Hold detected — starting recording")
-                                holdStartedRecording = true
-                                orchestrator.start()
-                            }
-                        }
-                        handler.postDelayed(startRecordingRunnable!!, HOLD_DELAY_MS)
-                    }
                     true
                 }
 
@@ -214,11 +200,7 @@ class FloatingBubbleService : Service() {
                     val dx = (event.rawX - initialTouchX).toInt()
                     val dy = (event.rawY - initialTouchY).toInt()
                     if (Math.abs(dx) > MOVE_THRESHOLD_PX || Math.abs(dy) > MOVE_THRESHOLD_PX) {
-                        if (!hasMoved) {
-                            hasMoved = true
-                            // Cancel pending recording if finger moved (it's a drag)
-                            cancelPendingRecording()
-                        }
+                        hasMoved = true
                     }
                     layoutParams.x = initialX + dx
                     layoutParams.y = initialY + dy
@@ -230,19 +212,15 @@ class FloatingBubbleService : Service() {
                     true
                 }
 
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    isHolding = false
-                    cancelPendingRecording()
-
-                    // If we were recording from the hold, stop and process on release
-                    if (holdStartedRecording &&
-                        orchestrator.getCurrentState() == VoiceFlowOrchestrator.State.LISTENING) {
-                        Log.d(TAG, "Released — stopping recording and processing")
-                        orchestrator.stop()
+                MotionEvent.ACTION_UP -> {
+                    if (!hasMoved) {
+                        // This was a tap — toggle recording on/off
+                        toggleRecording()
                     }
-                    holdStartedRecording = false
                     true
                 }
+
+                MotionEvent.ACTION_CANCEL -> true
 
                 else -> false
             }
@@ -250,11 +228,19 @@ class FloatingBubbleService : Service() {
     }
 
     /**
-     * Cancel any pending delayed recording start.
+     * Toggle recording: tap once to start, tap again to stop and process.
      */
-    private fun cancelPendingRecording() {
-        startRecordingRunnable?.let { handler.removeCallbacks(it) }
-        startRecordingRunnable = null
+    private fun toggleRecording() {
+        val currentState = orchestrator.getCurrentState()
+        if (!isRecordingActive && currentState == VoiceFlowOrchestrator.State.IDLE) {
+            Log.d(TAG, "Tap detected — starting recording")
+            isRecordingActive = true
+            orchestrator.start()
+        } else if (isRecordingActive && currentState == VoiceFlowOrchestrator.State.LISTENING) {
+            Log.d(TAG, "Tap detected — stopping recording and processing")
+            isRecordingActive = false
+            orchestrator.stop()
+        }
     }
 
     /**
@@ -334,7 +320,7 @@ class FloatingBubbleService : Service() {
 
         return NotificationCompat.Builder(this, VoiceFlowApplication.CHANNEL_ID)
             .setContentTitle("VoiceFlow Active")
-            .setContentText("Press and hold the bubble to dictate")
+            .setContentText("Tap the bubble to start/stop dictation")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
